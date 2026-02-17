@@ -216,8 +216,7 @@ def get_bonds(bond_idxs, coord_list, coord, coord_start, coord_end, comp_start, 
 
 def write_LAMMPS(LAMMPS_name, atom_counts, bond_count, coord_atoms, 
                  coords_hi, bond_types, bond_idxs, coord_list,
-                 angles, angle_types, angle_list, 
-                 dihedrals, dihedral_types, dihedral_type_rules):
+                 angles, angle_types, angle_list):
 
     file_name = LAMMPS_name
     atom_sum = len(coord_atoms)
@@ -234,12 +233,10 @@ def write_LAMMPS(LAMMPS_name, atom_counts, bond_count, coord_atoms,
         f.write(f"{atom_sum} atoms\n")
         f.write(f"{bond_sum} bonds\n")
         f.write(f"{len(angles)} angles\n")
-        f.write(f"{len(dihedrals)} dihedrals\n")
         
         f.write(f"\n{len(atom_symbols)} atom types\n")
         f.write(f"{len(bond_types)} bond types\n")
         f.write(f"{len(angle_list)} angle types\n")
-        f.write(f"{len(dihedral_type_rules)} dihedral types\n\n")
 
         f.write(f"0.0 {coords_hi[0]} xlo xhi\n")
         f.write(f"0.0 {coords_hi[1]} ylo yhi\n")
@@ -286,18 +283,6 @@ def write_LAMMPS(LAMMPS_name, atom_counts, bond_count, coord_atoms,
 
             f.write(f"{angle_num} {angle_type} {i} {j} {k}\n")
         f.write("\n")    
-
-        f.write(f"Dihedrals\n\n")
-        for i in range(len(dihedrals)):
-            
-            dihedral_num = i + 1
-            dihedral_type = dihedral_types[i]
-            i = dihedrals[i][0]
-            j = dihedrals[i][1]
-            k = dihedrals[i][2]
-            l = dihedrals[i][3]
-
-            f.write(f"{dihedral_num} {dihedral_type} {i} {j} {k} {l}\n")
 
 def get_angles(bond_idxs, atom_types, atom_counts):
     
@@ -363,47 +348,6 @@ def get_angles(bond_idxs, atom_types, atom_counts):
 
     return angles, angle_types, angle_type_rules
 
-def get_dihedrals(bond_list, atom_types):
-    bond_dict = {}
-    for _, a1, a2 in bond_list:
-        bond_dict.setdefault(a1, []).append(a2)
-        bond_dict.setdefault(a2, []).append(a1)
-   
-    dihedral_type_rules = {
-        (2, 2, 2, 2):1, (1, 2, 2, 2):2, (1, 2, 2, 1):3, (1, 2, 2, 3):4,
-        (1, 2, 3, 2):5, (1, 3, 2, 2):6, (3, 2, 2, 2):7, (2, 3, 2, 2):8,
-        (4, 1, 2, 2):9, (4, 2, 2, 1):10, (4, 2, 2, 2):11, (4, 2, 2, 3):12,
-        (4, 2, 3, 2):13, (4, 1, 2, 3):14, (4, 1, 3, 4):15, (4, 1, 2, 4):16,
-        (4, 2, 2, 4):17
-    }
-    
-    dihedrals = []
-    dihedral_types = []
-    seen = set()
-
-    for j in bond_dict:
-        for k in bond_dict[j]:
-            if j < k:  # avoid double counting
-                neighbors_j = [i for i in bond_dict[j] if i != k]
-                neighbors_k = [l for l in bond_dict[k] if l != j]
-                for i in neighbors_j:
-                    for l in neighbors_k:
-                        dihedral = (i, j, k, l)
-                        reverse_dihedral = (l, k, j, i)
-                        if dihedral in seen or reverse_dihedral in seen:
-                            continue
-                        seen.add(dihedral)
-                        seen.add(reverse_dihedral)
-
-                        types = (atom_types[i - 1], atom_types[j - 1],
-                                 atom_types[k - 1], atom_types[l - 1])
-                        if types in dihedral_type_rules:
-                            dtype = dihedral_type_rules[types]
-                            dihedrals.append(dihedral)
-                            dihedral_types.append(dtype)
-
-    return dihedrals, dihedral_types, dihedral_type_rules
-
 def extract_header(POSCAR_file):
 
     with open(POSCAR_file, 'r') as f:
@@ -441,12 +385,10 @@ if __name__=="__main__":
     bond_count, bond_types, bond_idxs, coord_list, atom_types, atom_counts = find_bonds(POSCAR_file, coords_hi, element_counts)
 
     angle, angle_types, angle_list = get_angles(bond_idxs, atom_types, atom_counts)
-
-    dihedrals, dihedral_types, dihedral_type_rules = get_dihedrals(bond_idxs, atom_types)
     
     write_LAMMPS(LAMMPS_file, atom_counts, bond_count, atom_types, 
                  coords_hi, bond_types, bond_idxs, coord_list, 
-                 angle, angle_types, angle_list, 
-                 dihedrals, dihedral_types, dihedral_type_rules)
+                 angle, angle_types, angle_list)
     
+
     print(f"{POSCAR_file} converted to {LAMMPS_file}")
